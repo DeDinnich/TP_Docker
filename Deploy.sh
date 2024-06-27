@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Charger les variables depuis secrets.env
 if [ -f secrets.env ]; then
   set -o allexport
   source secrets.env
@@ -10,7 +9,6 @@ else
   exit 1
 fi
 
-# Fonction pour vérifier et supprimer les conteneurs existants
 remove_existing_container() {
   container_name=$1
   if [ "$(docker ps -aq -f name=$container_name)" ]; then
@@ -19,7 +17,6 @@ remove_existing_container() {
   fi
 }
 
-# Fonction pour vérifier et supprimer le réseau Docker existant
 remove_existing_network() {
   network_name=$1
   if [ "$(docker network ls -q -f name=$network_name)" ]; then
@@ -28,7 +25,6 @@ remove_existing_network() {
   fi
 }
 
-# 1. Créer et lancer le conteneur MariaDB
 remove_existing_container "mariadb-server"
 echo "Démarrage du conteneur MariaDB..."
 docker pull mariadb:11
@@ -42,25 +38,14 @@ docker run -d \
   -p 3306:3306 \
   mariadb:11
 
-# 2. Construire l'image Docker pour Flask et lancer le conteneur
 cd back || exit
 
-# Créer le Dockerfile pour Flask
 cat <<EOF > Dockerfile
-# Utiliser l'image de base Python
 FROM python:3.9-slim
-
-# Définir le répertoire de travail dans le conteneur
 WORKDIR /app
-
-# Copier les fichiers requirements.txt et installer les dépendances
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copier le reste du code de l'application
 COPY . .
-
-# Exposer le port 5000 et démarrer le serveur Flask
 EXPOSE 5000
 CMD ["python", "app.py"]
 EOF
@@ -74,30 +59,17 @@ docker run -d \
   flask-app
 cd ..
 
-# 3. Construire l'image Docker pour Vue.js et lancer le conteneur
 cd front || exit
 
-# Créer le Dockerfile pour Vue.js
 cat <<EOF > Dockerfile
-# Utiliser l'image de base Node.js pour compiler l'application Vue.js
 FROM node:16 AS build-stage
-
 WORKDIR /app
-
-# Copier les fichiers package.json et yarn.lock et installer les dépendances
 COPY package.json yarn.lock ./
 RUN yarn install
-
-# Copier le reste du code de l'application et construire
 COPY . .
 RUN yarn build
-
-# Utiliser l'image de base NGINX pour servir l'application
 FROM nginx:stable
-
-# Copier les fichiers construits depuis l'étape précédente
 COPY --from=build-stage /app/dist /usr/share/nginx/html
-
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 EOF
@@ -112,21 +84,18 @@ docker run -d \
   vuejs-app || echo "Erreur lors du lancement du conteneur Vue.js, mais continue..."
 cd ..
 
-# 4. Pousser les images Docker sur DockerHub
 echo "Poussée des images Docker sur DockerHub..."
 docker tag flask-app ${DOCKERHUB_USERNAME}/flask-app:latest
 docker tag vuejs-app ${DOCKERHUB_USERNAME}/vuejs-app:latest
 docker push ${DOCKERHUB_USERNAME}/flask-app:latest
 docker push ${DOCKERHUB_USERNAME}/vuejs-app:latest || echo "Erreur lors de la poussée de l'image Vue.js, mais continue..."
 
-# 5. Mettre à jour le code source sur GitHub
 echo "Mise à jour du code source sur GitHub..."
 git pull origin main
 git add .
 git commit -m "avancement tp docker"
 git push origin main
 
-# 6. Créer un réseau Docker et connecter les conteneurs
 remove_existing_network "TP_Docker"
 echo "Création d'un réseau Docker et connexion des conteneurs..."
 docker network create TP_Docker
