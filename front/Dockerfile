@@ -17,7 +17,5 @@ FROM nginx:stable
 # Copier les fichiers construits depuis l'étape précédente
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Vérifier si nginx.conf existe et le copier
-COPY ../nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
