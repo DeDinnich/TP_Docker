@@ -98,16 +98,45 @@ FROM nginx:stable
 # Copier les fichiers construits depuis l'étape précédente
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Copier la configuration NGINX
+# Vérifier si nginx.conf existe et le copier
 COPY ../nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 EOF
 
 remove_existing_container "vuejs-app"
 echo "Construction de l'image Docker pour Vue.js..."
-docker build -t vuejs-app . || echo "Erreur lors de la construction de l'image Vue.js, mais continue..."
+if [ -f ../nginx.conf ]; then
+  docker build -t vuejs-app .
+else
+  echo "Fichier nginx.conf non trouvé, construction de l'image sans ce fichier."
+  cat <<EOF > Dockerfile_temp
+  # Utiliser l'image de base Node.js pour compiler l'application Vue.js
+  FROM node:16 AS build-stage
+
+  WORKDIR /app
+
+  # Copier les fichiers package.json et yarn.lock et installer les dépendances
+  COPY package.json yarn.lock ./
+  RUN yarn install
+
+  # Copier le reste du code de l'application et construire
+  COPY . .
+  RUN yarn build
+
+  # Utiliser l'image de base NGINX pour servir l'application
+  FROM nginx:stable
+
+  # Copier les fichiers construits depuis l'étape précédente
+  COPY --from=build-stage /app/dist /usr/share/nginx/html
+
+  EXPOSE 80
+  CMD ["nginx", "-g", "daemon off;"]
+EOF
+  docker build -t vuejs-app -f Dockerfile_temp .
+  rm Dockerfile_temp
+fi
+
 docker run -d \
   --name vuejs-app \
   -p 80:80 \
@@ -123,10 +152,10 @@ docker push ${DOCKERHUB_USERNAME}/vuejs-app:latest || echo "Erreur lors de la po
 
 # 5. Mettre à jour le code source sur GitHub
 echo "Mise à jour du code source sur GitHub..."
-git pull origin master
+git pull origin main
 git add .
 git commit -m "avancement tp docker"
-git push origin master
+git push origin main
 
 # 6. Créer un réseau Docker et connecter les conteneurs
 remove_existing_network "TP_Docker"
