@@ -114,10 +114,10 @@ docker push ${DOCKERHUB_USERNAME}/vuejs-app:latest
 
 # 5. Mettre à jour le code source sur GitHub
 echo "Mise à jour du code source sur GitHub..."
-git pull origin master
+git pull
 git add .
 git commit -m "avancement tp docker"
-git push origin master
+git push origin
 
 # 6. Créer un réseau Docker et connecter les conteneurs
 echo "Création d'un réseau Docker et connexion des conteneurs..."
