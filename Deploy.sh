@@ -19,6 +19,15 @@ remove_existing_container() {
   fi
 }
 
+# Fonction pour vérifier et supprimer le réseau Docker existant
+remove_existing_network() {
+  network_name=$1
+  if [ "$(docker network ls -q -f name=$network_name)" ]; then
+    echo "Suppression du réseau existant : $network_name"
+    docker network rm $network_name
+  fi
+}
+
 # 1. Créer et lancer le conteneur MariaDB
 remove_existing_container "mariadb-server"
 echo "Démarrage du conteneur MariaDB..."
@@ -90,7 +99,7 @@ FROM nginx:stable
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # Copier la configuration NGINX
-COPY /home/dedinnich/TP_Docker/nginx.conf /etc/nginx/nginx.conf
+COPY ../nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -98,11 +107,11 @@ EOF
 
 remove_existing_container "vuejs-app"
 echo "Construction de l'image Docker pour Vue.js..."
-docker build -t vuejs-app .
+docker build -t vuejs-app . || echo "Erreur lors de la construction de l'image Vue.js, mais continue..."
 docker run -d \
   --name vuejs-app \
   -p 80:80 \
-  vuejs-app
+  vuejs-app || echo "Erreur lors du lancement du conteneur Vue.js, mais continue..."
 cd ..
 
 # 4. Pousser les images Docker sur DockerHub
@@ -110,20 +119,21 @@ echo "Poussée des images Docker sur DockerHub..."
 docker tag flask-app ${DOCKERHUB_USERNAME}/flask-app:latest
 docker tag vuejs-app ${DOCKERHUB_USERNAME}/vuejs-app:latest
 docker push ${DOCKERHUB_USERNAME}/flask-app:latest
-docker push ${DOCKERHUB_USERNAME}/vuejs-app:latest
+docker push ${DOCKERHUB_USERNAME}/vuejs-app:latest || echo "Erreur lors de la poussée de l'image Vue.js, mais continue..."
 
 # 5. Mettre à jour le code source sur GitHub
 echo "Mise à jour du code source sur GitHub..."
-git pull
+git pull origin master
 git add .
 git commit -m "avancement tp docker"
-git push origin
+git push origin master
 
 # 6. Créer un réseau Docker et connecter les conteneurs
+remove_existing_network "TP_Docker"
 echo "Création d'un réseau Docker et connexion des conteneurs..."
-docker network create my_network
-docker network connect my_network mariadb-server
-docker network connect my_network flask-app
-docker network connect my_network vuejs-app
+docker network create TP_Docker
+docker network connect TP_Docker mariadb-server
+docker network connect TP_Docker flask-app
+docker network connect TP_Docker vuejs-app
 
 echo "Déploiement terminé !"
